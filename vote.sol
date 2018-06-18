@@ -24,7 +24,7 @@ contract Ownable {
    * @dev The Ownable constructor sets the original `owner` of the contract to the sender
    * account.
    */
-  function Ownable() internal {
+  constructor() internal payable {
     owner = msg.sender;
   }
 
@@ -44,7 +44,7 @@ contract Ownable {
    */
   function transferOwnership(address newOwner) onlyOwner public {
     require(newOwner != address(0));
-    OwnershipTransferred(owner, newOwner);
+    emit OwnershipTransferred(owner, newOwner);
     owner = newOwner;
   }
 
@@ -81,7 +81,7 @@ contract Pausable is Ownable {
    */
   function pause() onlyOwner whenNotPaused public {
     paused = true;
-    Pause();
+    emit Pause();
   }
 
   /**
@@ -89,7 +89,7 @@ contract Pausable is Ownable {
    */
   function unpause() onlyOwner whenPaused public {
     paused = false;
-    Unpause();
+    emit Unpause();
   }
 }
 
@@ -150,7 +150,7 @@ contract BasicToken is ERC20Basic {
     // SafeMath.sub will throw if there is not enough balance.
     balances[msg.sender] = balances[msg.sender].sub(_value);
     balances[_to] = balances[_to].add(_value);
-    Transfer(msg.sender, _to, _value);
+    emit Transfer(msg.sender, _to, _value);
     return true;
   }
 
@@ -194,14 +194,14 @@ contract StandardToken is ERC20, BasicToken, Pausable {
     balances[_from] = balances[_from].sub(_value);
     balances[_to] = balances[_to].add(_value);
     allowed[_from][msg.sender] = _allowance.sub(_value);
-    Transfer(_from, _to, _value);
+    emit Transfer(_from, _to, _value);
     return true;
   }
 
   
   function approve(address _spender, uint256 _value) public whenNotPaused returns (bool) {
     allowed[msg.sender][_spender] = _value;
-    Approval(msg.sender, _spender, _value);
+    emit Approval(msg.sender, _spender, _value);
     return true;
   }
 
@@ -212,7 +212,7 @@ contract StandardToken is ERC20, BasicToken, Pausable {
   
   function increaseApproval (address _spender, uint _addedValue) public whenNotPaused returns (bool success) {
     allowed[msg.sender][_spender] = allowed[msg.sender][_spender].add(_addedValue);
-    Approval(msg.sender, _spender, allowed[msg.sender][_spender]);
+    emit Approval(msg.sender, _spender, allowed[msg.sender][_spender]);
     return true;
   }
 
@@ -223,7 +223,7 @@ contract StandardToken is ERC20, BasicToken, Pausable {
     } else {
       allowed[msg.sender][_spender] = oldValue.sub(_subtractedValue);
     }
-    Approval(msg.sender, _spender, allowed[msg.sender][_spender]);
+    emit Approval(msg.sender, _spender, allowed[msg.sender][_spender]);
     return true;
   }
 
@@ -238,12 +238,12 @@ contract EletronicVote is StandardToken {
     uint256 public decimals = 18;
     uint256 public totalSupply = 100 * (10 ** decimals); //100 EV
     
-    address myWallet = 0x2a788D1D90F3E8413AB1504bFc0167925d19B6aD;
+    address myWallet = 0xFcc928D02b580Cf2409490C474f4010610cfB32a;
     
     mapping(uint256 => address) CodigoCandidato;
     mapping(address => Voto) votoEleitor;
    
-    struct Voto{
+    struct Voto {
          bool votoPresidente;
          bool votoVereador;
          bool votoDeputado;
@@ -252,17 +252,54 @@ contract EletronicVote is StandardToken {
          uint256 codDeputado;
     }
     
-   
+    uint256 votosNullos;
         
-    function EletronicVote() public {
+    constructor() public payable {
         balances[myWallet] = balances[myWallet].add(totalSupply);
+        votosNullos = 0;
         CodigoCandidato[1010] = 0x1FCd3619Ec673fc97D8b8d9d6fCb938cC875D0EF;
         CodigoCandidato[2020] = 0x812569A19C2B244A68fb158c474ABBD3D22d12b7;
         CodigoCandidato[3030] = 0xf77D44af8Ae8D37EC5B1da7818325899aE48544B;
     }
     
+    //function CheckWinner() public returns (uint256 codigoCandidatoVencedor){    }
     
-    function GravarVotopresidente (uint256 candidato) public {
+    function newCadidate(uint256 candidateCode, address candidateAddrWallet) public constant returns (bool success){
+        
+        CodigoCandidato[candidateCode] = candidateAddrWallet;
+        
+        return true;
+    }
+    
+    function VerificaVotosNulos() public constant returns (uint256 votosNulos){
+        return votosNullos;
+    }
+    
+    function VerificaVoto (uint256 candidateCode) public constant returns (uint256 votos) {
+        return balanceOf(CodigoCandidato[candidateCode]);
+    }
+    
+    function Votar(uint256 candidato) public returns (uint256 votos) {
+        
+        if (candidato == 0){
+            votosNullos++;
+            return 0;
+        }
+        
+        votoEleitor[msg.sender].votoPresidente = true;
+        votoEleitor[msg.sender].codPresidente = candidato; 
+        
+        address addrCandidato = CodigoCandidato[candidato];
+        
+        uint256 value = 1;
+        
+        //balances[msg.sender] = balances[msg.sender].sub(value);
+        balances[addrCandidato] = balances[addrCandidato].add(value);
+        
+        return balanceOf(addrCandidato);
+    }
+    
+    function GravarVotopresidente (uint256 candidato) public returns (bool success) {
         require(balances[msg.sender] <= 3 && balances[msg.sender] > 0);
         require(votoEleitor[msg.sender].votoPresidente == false);
         
@@ -271,10 +308,11 @@ contract EletronicVote is StandardToken {
         
         address addrCandidato = CodigoCandidato[candidato];
         
-        uint256 value = 1 * (10 ** decimals);
+        uint256 value = 1;
         balances[msg.sender] = balances[msg.sender].sub(value);
         balances[addrCandidato] = balances[addrCandidato].add(value);
         
+        return true;
     }
     
     
